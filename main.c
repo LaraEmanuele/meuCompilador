@@ -63,6 +63,24 @@ int main() {
     // Imprime o relatório visual dos tokens gerados na consola
     print_token_list(token_list);
 
+
+    // 1. Abre um ficheiro para gravar o código Assembly de saída
+    FILE *arquivo_sam = fopen("./resultado.sam", "w");
+    if (arquivo_sam == NULL) {
+        printf("Erro ao criar o ficheiro resultado.sam\n");
+        return 1;
+    }
+
+    // 2. Executa o Parser passando a lista de tokens E o ficheiro do AssemblySam
+    printf("============= INICIANDO ANALISE + GERACAO DE CODIGO =============\n");
+    program_parser(token_list, arquivo_sam);
+    printf("=================================================================\n\n");
+
+    // Fecha o arquivo gravado
+    fclose(arquivo_sam);
+
+    // ... limpeza de memória ...
+
     // ============================================================
     // 4. LIMPEZA DE MEMÓRIA
     // ============================================================
