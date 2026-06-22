@@ -37,23 +37,33 @@ void print_token_list(TokenNode *head) {
         
         switch (current->token.type) {
             case TOKEN_KEYWORD:
-                if (current->token.value.keyword == EXIT)  printf("Tipo: KEYWORD        | Valor: EXIT\n");
-                if (current->token.value.keyword == PRINT) printf("Tipo: KEYWORD        | Valor: PRINT\n");
+                printf("Tipo: KEYWORD        | Valor: ");
+                if (current->token.value.keyword == EXIT)  printf("EXIT\n");
+                if (current->token.value.keyword == PRINT) printf("PRINT\n");
                 break;
                 
             case TOKEN_LITERAL:
-                if (current->token.value.literal_value == STRING) {
-                    printf("Tipo: LITERAL (STR)  | Valor: TEXTO\n");
-                } else {
-                    printf("Tipo: LITERAL (INT)  | Valor: %d\n", current->token.value.literal_value);
+                // Agora olhamos a tag interna para saber como formatar o print
+                switch (current->token.value.literal.tag) {
+                    case LIT_INT:
+                        printf("Tipo: LITERAL (INT)  | Valor: %d\n", current->token.value.literal.int_value);
+                        break;
+                    case LIT_FLOAT:
+                        // %.2f limita o print a duas casas decimais no terminal
+                        printf("Tipo: LITERAL (FLOAT)| Valor: %.2f\n", current->token.value.literal.float_value);
+                        break;
+                    case LIT_STRING:
+                        printf("Tipo: LITERAL (STR)  | Valor: %s\n", current->token.value.literal.string_value);
+                        break;
                 }
                 break;
                 
             case TOKEN_SEPARATOR:
                 printf("Tipo: SEPARATOR      | Valor: ");
-                if (current->token.value.separator == SEMICOLON)  printf(";\n");
-                if (current->token.value.separator == OPEN_PAREN) printf("(\n");
-                if (current->token.value.separator == CLOSE_PAREN) printf(")\n");
+                if (current->token.value.separator == SEMICOLON)     printf(";\n");
+                if (current->token.value.separator == OPEN_PAREN)    printf("(\n");
+                if (current->token.value.separator == CLOSE_PAREN)   printf(")\n");
+                if (current->token.value.separator == DOUBLE_QUOTES) printf("\"\n");
                 break;
         }
         current = current->next; // Avança para o próximo nó
@@ -66,32 +76,59 @@ void free_token_list(TokenNode *head) {
     TokenNode *current = head;
     while (current != NULL) {
         TokenNode *next_node = current->next;
+        
+        // Se for um literal do tipo string, limpa o buffer do texto
+        if (current->token.type == TOKEN_LITERAL && current->token.value.literal.tag == LIT_STRING) {
+            free(current->token.value.literal.string_value);
+        }
+        
         free(current);
         current = next_node;
     }
 }
 
-
 /***********Funções relacionadas análise Lexica***********/
 static Token generate_number (char current, FILE *file, int current_line){
-  Token token;
-  token.type = TOKEN_LITERAL;
-  token.line = current_line;
+    Token token;
+    token.type = TOKEN_LITERAL;
+    token.line = current_line;
 
-  int value = 0;
+    int int_part = 0;
 
-  while(isdigit(current) && current != EOF){
-    value = (value * 10) + (current - '0');
-    current = fgetc(file);
-  }
+    while(isdigit(current) && current != EOF){
+        int_part = (int_part * 10) + (current - '0');
+        current = fgetc(file);
+    }
 
-  if (current != EOF) {
-    ungetc(current, file);
-  }
+    // 2. Verifica se é um FLOAT (achou um ponto '.')
+    if (current == '.') {
+        token.value.literal.tag = LIT_FLOAT;
+        
+        current = fgetc(file); // Pula o ponto '.'
+        
+        float frac_part = 0.0;
+        float divisor = 10.0;
+        
+        // Lê a parte fracionária
+        while (isdigit(current) && current != EOF) {
+            frac_part += (current - '0') / divisor;
+            divisor *= 10.0;
+            current = fgetc(file);
+        }
+        
+        token.value.literal.float_value = (float)int_part + frac_part;
+    } else {
+        // Se não achou ponto, é um INT normal
+        token.value.literal.tag = LIT_INT;
+        token.value.literal.int_value = int_part;
+    }
 
-  token.value.literal_value = value;
+    // Devolve o caractere que fez o loop parar de volta para o arquivo
+    if (current != EOF) {
+        ungetc(current, file);
+    }
 
-  return token;
+    return token;
 }
 
 static Token* generate_keyword (char current, FILE *file, int current_line){
@@ -119,10 +156,64 @@ static Token* generate_keyword (char current, FILE *file, int current_line){
   }else if (strcmp(keyword, "print") == 0) {
     token->value.keyword = PRINT;
   } else {
+    //Se não for nenhum dos dois, mude o tipo do token 
+    // para que o lexer saiba que não deve aceitá-lo como KEYWORD
+    token->type = TOKEN_LITERAL;
   }
 
   free(keyword);
   return token;
+}
+
+static void generate_string(char current, FILE *file, int *current_line, TokenNode **token_list) {
+    // 1. GERA E INSERE O TOKEN DA ASPA DE ABERTURA
+    Token open_quote;
+    open_quote.type = TOKEN_SEPARATOR; // Ou o TokenType que preferir para DOUBLE_QUOTES
+    open_quote.value.separator = DOUBLE_QUOTES; // Assumindo que adicionou DOUBLE_QUOTES no enum
+    open_quote.line = *current_line;
+    append_token(token_list, open_quote);
+    
+    
+    // 2. CAPTURA O TEXTO DA STRING
+    // Aloca o buffer para o texto interno
+    char *buffer = malloc(sizeof(char) * 256);
+    int idx = 0;
+
+    // O uso da linha como ponteiro (int *current_line)
+    // Isso é necessário porque se houver um \n DENTRO da string, 
+    // precisa atualizar a linha no lexer principal também.
+    current = fgetc(file); // Pula a aspa de abertura que disparou o estado
+    
+    while (current != '"' && current != EOF) {
+        if (current == '\n') {
+            (*current_line)++;
+        }
+        
+        buffer[idx++] = current;
+        current = fgetc(file);
+    }
+    buffer[idx] = '\0'; // Finaliza a string para o C
+
+    // 3. GERA E INSERE O TOKEN DO TEXTO LITERAL
+    Token string_literal;
+    string_literal.type = TOKEN_LITERAL;
+    string_literal.value.literal.tag = LIT_STRING;
+    string_literal.value.literal.string_value = buffer;
+    string_literal.line = *current_line;
+    append_token(token_list, string_literal);
+
+    // 4. GERA E INSERE O TOKEN DA ASPA DE FECHAMENTO (se encontrou)
+    if (current == '"') {
+        Token close_quote;
+        close_quote.type = TOKEN_SEPARATOR;
+        close_quote.value.separator = DOUBLE_QUOTES;
+        close_quote.line = *current_line;
+        append_token(token_list, close_quote);
+    } else {
+        printf("ERRO LÉXICO: Linha %d - String não foi fechada (esperado '\"').\n", *current_line);
+    }
+
+    return;
 }
 
 TokenNode* lexer (FILE *file){
@@ -165,20 +256,11 @@ TokenNode* lexer (FILE *file){
 
             current = fgetc(file); // Avança
         }else if (current == '"') {
-            Token token;
-            token.type = TOKEN_LITERAL; // Classificado como Literal na sua estrutura
-            token.line = current_line;
-            token.value.literal_value = STRING; // Indica que o valor interno representa uma String
-
-            // Consome os caracteres de dentro das aspas (vamos pular o texto interno no teste simples)
-            current = fgetc(file);
-            while (current != '"' && current != EOF) {
-                if (current == '\n') current_line++;
-                current = fgetc(file);
-            }
+            // O &current_line como endereço serve para que a função possa incrementá-la se necessário
+            generate_string(current, file, &current_line, &token_list);
             
-            append_token(&token_list, token);
-            current = fgetc(file); // Avança para depois das aspas de fechamento
+            // Avançamos para o próximo caractere pós-aspa e continuamos o laço
+            current = fgetc(file);
         } else if (isdigit(current)) {
             // Não processa o número aqui! Só muda o estado
             state = STATE_IN_NUMBER;
@@ -207,6 +289,8 @@ TokenNode* lexer (FILE *file){
         Token *test_keyword = generate_keyword(current, file, current_line);
         if (test_keyword->value.keyword == EXIT || test_keyword->value.keyword == PRINT) {
             append_token(&token_list, *test_keyword); 
+        }else{
+            printf("ERRO LÉXICO: Identificador desconhecido na linha %d\n", current_line);
         }
         free(test_keyword);
         

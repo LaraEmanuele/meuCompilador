@@ -3,7 +3,9 @@
 
 #include "lexer.h"
 
-// Função principal que recebe a lista de tokens do Lexer e faz a análise sintática
-void program_parser(TokenNode *tokens_do_lexer, FILE *output_file);
+
+void parse_symbol(Grammar *g, Symbol *s, TokenNode **current_node, FILE *arquivo_sam);
+
+void program_parser(TokenNode *tokens_do_lexer, FILE *arquivo_sam, Grammar *g);
 
 #endif

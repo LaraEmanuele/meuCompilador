@@ -7,6 +7,9 @@
 
 // Funções de Criação
 Grammar* grammar(const char *start_symbol_name);
+Symbol* add_terminal_separator(Grammar *g, const char *name, TypeSeparator separator_enum);
+Symbol* add_terminal_keyword(Grammar *g, const char *name, TypeKeyWord keyword_enum);
+Symbol* add_terminal_literal(Grammar *g, const char *name, TypeLiteral literal_enum);
 Symbol* add_nonterminal(Grammar *g, const char *name);
 Symbol* add_terminal(Grammar *g, const char *name);
 Production* add_production(Grammar *g, Symbol *A, Symbol **rhs_sequence, int rhs_count);

@@ -1,14 +1,4 @@
-.SECTION DATA
-    ; Aqui entrariam as strings capturadas
-.SECTION TEXT
-.GLOBAL _start
-_start:
-
-    ; --- Comando Print ---
-    PUSH string_var_ficticia
-    CALL sys_print
-
-    ; --- Comando Exit ---
-    MOV R0, #0
-    CALL sys_exit
-
+PUSHIMMSTR "Hello World"
+WRITESTR
+PUSHIMM 0
+STOP

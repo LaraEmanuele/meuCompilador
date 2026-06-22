@@ -24,6 +24,7 @@ typedef enum {
 
 typedef enum {
 	INT,
+    FLOAT,
     STRING,
 } TypeLiteral;
 
@@ -31,17 +32,30 @@ typedef enum {
 	SEMICOLON,
 	OPEN_PAREN,
 	CLOSE_PAREN,
+    DOUBLE_QUOTES,
 } TypeSeparator;
 
+typedef enum {
+    LIT_INT,
+    LIT_FLOAT,
+    LIT_STRING,
+} LiteralTag;
+
 typedef struct {
-  TokenType type;
-  /*O union irá armazenar uma das informações definidas em seu interior */
-  union {
-    TypeKeyWord keyword;     // Preenchido se for TOKEN_KEYWORD
-    int literal_value;       // Preenchido se for TOKEN_LITERAL (seu 'int value')
-    TypeSeparator separator; // Preenchido se for TOKEN_SEPARATOR
-  } value;
-  int line; // Preenchido com a linha do arquivo tex em que o token foi obtido
+    TokenType type;
+    union {
+        TypeKeyWord keyword;     
+        TypeSeparator separator; 
+        
+        // Estrutura unificada para os literais (guarda o tipo E o valor)
+        struct {
+            LiteralTag tag;       // LIT_INT ou LIT_STRING OU LIT_FLOAT
+            int int_value;        // Preenchido se for LIT_INT
+            float float_value;    // Preenchido se for LIT_FLOAT
+            char *string_value;   // Preenchido se for LIT_STRING
+        } literal;
+    } value;
+    int line; 
 } Token;
 
 typedef struct TokenNode {
@@ -60,6 +74,16 @@ typedef enum {
 typedef struct {
     char name[50];       
     SymbolType type;     
+    
+    //Guarda a assinatura exata do Token correspondente
+    struct {
+        TokenType token_type;
+        union {
+            TypeKeyWord keyword;
+            TypeSeparator separator;
+            TypeLiteral literal; // adicionado para cobrir INT/STRING de forma limpa
+        } value;
+    } terminal_info;
 } Symbol;
 
 typedef struct {
