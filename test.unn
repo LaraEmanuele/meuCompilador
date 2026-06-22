@@ -1,2 +1,5 @@
 print("Hello World");
+int x;
+x = 5;
+print(x);
 exit(0);

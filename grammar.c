@@ -47,6 +47,28 @@ Symbol* add_terminal_literal(Grammar *g, const char *name, TypeLiteral literal_e
     return s;
 }
 
+// add_terminal_identifier: adiciona o terminal ID ao conjunto e retorna seu descritor
+Symbol* add_terminal_identifier(Grammar *g, const char *name) {
+    // Mesma regra do professor: Caso já exista como NÃO-TERMINAL, reporta erro.
+    for (int i = 0; i < g->symbol_count; i++) {
+        if (strcmp(g->symbols[i]->name, name) == 0) {
+            if (g->symbols[i]->type == SYMBOL_NON_TERMINAL) {
+                printf("ERRO NA GRAMATICA: '%s' ja foi declarado como NAO-TERMINAL!\n", name);
+                exit(1);
+            }
+            return g->symbols[i]; // Se já existir, apenas retorna ele
+        }
+    }
+
+    // Cria o novo símbolo terminal específico para Identificadores
+    Symbol *s = malloc(sizeof(Symbol));
+    strcpy(s->name, name);
+    s->type = SYMBOL_TERMINAL;
+    s->terminal_info.token_type = TOKEN_IDENTIFIER; // Configura o tipo correto do token
+
+    g->symbols[g->symbol_count++] = s;
+    return s;
+}
 
 // add-nonterminal(A): adiciona o não-terminal A ao conjunto e retorna seu descritor (ponteiro).
 Symbol* add_nonterminal(Grammar *g, const char *name) {

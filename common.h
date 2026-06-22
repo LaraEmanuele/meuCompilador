@@ -3,8 +3,13 @@
 #define COMMON_H
 
 // ==========================================
-// ESTRUTURAS DO LEXER
+// 1. ENUMS BÁSICOS (DECLARADOS PRIMEIRO)
 // ==========================================
+typedef enum {
+    SYMBOL_TERMINAL,
+    SYMBOL_NON_TERMINAL
+} SymbolType;
+
 typedef enum {
     STATE_START,
     STATE_IN_NUMBER,
@@ -12,27 +17,30 @@ typedef enum {
 } LexerState;
 
 typedef enum {
-  TOKEN_KEYWORD,
-  TOKEN_LITERAL,
-  TOKEN_SEPARATOR
+    TOKEN_KEYWORD,
+    TOKEN_LITERAL,
+    TOKEN_SEPARATOR,
+    TOKEN_IDENTIFIER, 
 } TokenType;
 
 typedef enum {
-	EXIT,
+    EXIT,
     PRINT,
-} TypeKeyWord;	
+    INT_KW,
+} TypeKeyWord;  
 
 typedef enum {
-	INT,
+    INT,
     FLOAT,
     STRING,
 } TypeLiteral;
 
 typedef enum {
-	SEMICOLON,
-	OPEN_PAREN,
-	CLOSE_PAREN,
+    SEMICOLON,
+    OPEN_PAREN,
+    CLOSE_PAREN,
     DOUBLE_QUOTES,
+    EQUAL,
 } TypeSeparator;
 
 typedef enum {
@@ -41,47 +49,20 @@ typedef enum {
     LIT_STRING,
 } LiteralTag;
 
-typedef struct {
-    TokenType type;
-    union {
-        TypeKeyWord keyword;     
-        TypeSeparator separator; 
-        
-        // Estrutura unificada para os literais (guarda o tipo E o valor)
-        struct {
-            LiteralTag tag;       // LIT_INT ou LIT_STRING OU LIT_FLOAT
-            int int_value;        // Preenchido se for LIT_INT
-            float float_value;    // Preenchido se for LIT_FLOAT
-            char *string_value;   // Preenchido se for LIT_STRING
-        } literal;
-    } value;
-    int line; 
-} Token;
-
-typedef struct TokenNode {
-    Token token;             // O token atual (com tipo e valor)
-    struct TokenNode *next;  // Ponteiro para o próximo token da lista
-} TokenNode;
-
 // ==========================================
-// ESTRUTURAS DA GRAMÁTICA
+// 2. ESTRUTURAS DA GRAMÁTICA E DO LEXER
 // ==========================================
-typedef enum {
-    SYMBOL_TERMINAL,
-    SYMBOL_NON_TERMINAL
-} SymbolType;
-
 typedef struct {
     char name[50];       
     SymbolType type;     
     
-    //Guarda a assinatura exata do Token correspondente
+    // Guarda a assinatura exata do Token correspondente
     struct {
         TokenType token_type;
         union {
             TypeKeyWord keyword;
             TypeSeparator separator;
-            TypeLiteral literal; // adicionado para cobrir INT/STRING de forma limpa
+            TypeLiteral literal; 
         } value;
     } terminal_info;
 } Symbol;
@@ -92,10 +73,9 @@ typedef struct {
     int rhs_count;       
 } Production;
 
-// Representa uma ocorrência de um símbolo: qual produção (p) e em qual índice (i)
 typedef struct {
-    void *production_ptr; // Ponteiro para a Production (void* para evitar dependência cíclica)
-    int index;            // O 'i' (índice baseado em 0)
+    void *production_ptr; 
+    int index;            
 } Occurrence;
 
 typedef struct {
@@ -105,5 +85,40 @@ typedef struct {
     Production *productions[100]; 
     int production_count;
 } Grammar;
+
+typedef struct {
+    TokenType type;
+    union {
+        TypeKeyWord keyword;     
+        TypeSeparator separator; 
+        char identifier_name[32]; 
+        
+        struct {
+            LiteralTag tag;       
+            int int_value;        
+            float float_value;    
+            char *string_value;   
+        } literal;
+    } value;
+    int line; 
+} Token;
+
+typedef struct TokenNode {
+    Token token;             
+    struct TokenNode *next;  
+} TokenNode;
+
+// ==========================================
+// 3. ESTRUTURAS DO PARSER
+// ==========================================
+typedef struct {
+    char name[32];
+    int offset;
+} Variable;
+
+typedef struct {
+    Variable variaveis[100];
+    int quantidade;
+} SymbolTable;
 
 #endif

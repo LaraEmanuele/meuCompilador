@@ -6,7 +6,7 @@
 #include "lexer.h" // Inclui o seu próprio cabeçalho
 
 /***********Funções relacionadas a lista de tokens***********/
-// Função que insere um token no fim da lista encadeada
+//Função que insere um token no fim da lista encadeada
 static void append_token(TokenNode **head, Token token) {
     TokenNode *new_node = malloc(sizeof(TokenNode));
     new_node->token = token;
@@ -26,7 +26,7 @@ static void append_token(TokenNode **head, Token token) {
     current->next = new_node;
 }
 
-// SUA FUNÇÃO DE TESTE: Mostra a lista inteira no terminal. Usada para testar o lexer
+//FUNÇÃO DE TESTE: Mostra a lista inteira no terminal. Usada para testar o lexer
 void print_token_list(TokenNode *head) {
     TokenNode *current = head;
     printf("\n============= LISTA DE TOKENS GERADA =============\n");
@@ -38,15 +38,20 @@ void print_token_list(TokenNode *head) {
         switch (current->token.type) {
             case TOKEN_KEYWORD:
                 printf("Tipo: KEYWORD        | Valor: ");
-                if (current->token.value.keyword == EXIT)  printf("EXIT\n");
-                if (current->token.value.keyword == PRINT) printf("PRINT\n");
+                if (current->token.value.keyword == EXIT)    printf("EXIT\n");
+                if (current->token.value.keyword == PRINT)   printf("PRINT\n");
+                if (current->token.value.keyword == INT_KW)  printf("INT\n");
                 break;
                 
+            case TOKEN_IDENTIFIER:
+                printf("Tipo: IDENTIFIER     | Valor: %s\n", current->token.value.identifier_name);
+                break;
+
             case TOKEN_LITERAL:
                 // Agora olhamos a tag interna para saber como formatar o print
                 switch (current->token.value.literal.tag) {
                     case LIT_INT:
-                        printf("Tipo: LITERAL (INT)  | Valor: %d\n", current->token.value.literal.int_value);
+                        printf("Tipo: LITERAL (INTEGER)  | Valor: %d\n", current->token.value.literal.int_value);
                         break;
                     case LIT_FLOAT:
                         // %.2f limita o print a duas casas decimais no terminal
@@ -64,6 +69,7 @@ void print_token_list(TokenNode *head) {
                 if (current->token.value.separator == OPEN_PAREN)    printf("(\n");
                 if (current->token.value.separator == CLOSE_PAREN)   printf(")\n");
                 if (current->token.value.separator == DOUBLE_QUOTES) printf("\"\n");
+                if (current->token.value.separator == EQUAL)        printf("=\n");
                 break;
         }
         current = current->next; // Avança para o próximo nó
@@ -71,7 +77,7 @@ void print_token_list(TokenNode *head) {
     printf("==================================================\n\n");
 }
 
-// Função para limpar a memória no final do programa
+//Função para limpar a memória no final do programa
 void free_token_list(TokenNode *head) {
     TokenNode *current = head;
     while (current != NULL) {
@@ -87,7 +93,7 @@ void free_token_list(TokenNode *head) {
     }
 }
 
-/***********Funções relacionadas análise Lexica***********/
+/***********Funções Separadoras de Tokens***********/
 static Token generate_number (char current, FILE *file, int current_line){
     Token token;
     token.type = TOKEN_LITERAL;
@@ -131,58 +137,68 @@ static Token generate_number (char current, FILE *file, int current_line){
     return token;
 }
 
-static Token* generate_keyword (char current, FILE *file, int current_line){
-  Token *token = malloc(sizeof(Token));
-  token->type = TOKEN_KEYWORD;
-  token->line = current_line;
+static Token* generate_identifier_or_keyword(char current, FILE *file, int current_line) {
+    Token *t = (Token*) malloc(sizeof(Token));
+    t->line = current_line;
 
-  char *keyword = malloc(sizeof(char) * 256);
-  int keyword_index = 0;
+    char buffer[32];
+    int idx = 0;
+    
+    // O primeiro caractere já veio no parâmetro 'current'
+    buffer[idx++] = current;
 
-  while(isalpha(current) && current != EOF){
-    keyword[keyword_index] = current;
-    keyword_index++;
-    current = fgetc(file);
-  }
+    // Continua lendo enquanto for caractere válido para nomes (letras, números ou _)
+    char next = fgetc(file);
+    while ((next >= 'a' && next <= 'z') || 
+           (next >= 'A' && next <= 'Z') || 
+           (next >= '0' && next <= '9') || 
+           next == '_') {
+        
+        if (idx < 31) {
+            buffer[idx++] = next;
+        }
+        next = fgetc(file);
+    }
+    
+    // Devolve o caractere que não pertencia à palavra para o arquivo não perder posição
+    if (next != EOF) {
+        ungetc(next, file);
+    }
+    
+    buffer[idx] = '\0'; // Finaliza a string em C
 
-  keyword[keyword_index] = '\0';
+    // ==========================================
+    // PASSO DE DECISÃO: É palavra-chave ou ID?
+    // ==========================================
+    if (strcmp(buffer, "int") == 0) {
+        t->type = TOKEN_KEYWORD;
+        t->value.keyword = INT_KW; 
+    } else if (strcmp(buffer, "print") == 0) {
+        t->type = TOKEN_KEYWORD;
+        t->value.keyword = PRINT;
+    } else if (strcmp(buffer, "exit") == 0) {
+        t->type = TOKEN_KEYWORD;
+        t->value.keyword = EXIT;
+    } else {
+        // Se não for nenhuma palavra-chave mapeada, é um IDENTIFICADOR (nome de variável)
+        t->type = TOKEN_IDENTIFIER;
+        strcpy(t->value.identifier_name, buffer); 
+    }
 
-  if (current != EOF) {
-    ungetc(current, file);
-  }
-
-  if (strcmp(keyword, "exit") == 0){
-    token->value.keyword = EXIT;
-  }else if (strcmp(keyword, "print") == 0) {
-    token->value.keyword = PRINT;
-  } else {
-    //Se não for nenhum dos dois, mude o tipo do token 
-    // para que o lexer saiba que não deve aceitá-lo como KEYWORD
-    token->type = TOKEN_LITERAL;
-  }
-
-  free(keyword);
-  return token;
+    return t;
 }
 
 static void generate_string(char current, FILE *file, int *current_line, TokenNode **token_list) {
-    // 1. GERA E INSERE O TOKEN DA ASPA DE ABERTURA
     Token open_quote;
-    open_quote.type = TOKEN_SEPARATOR; // Ou o TokenType que preferir para DOUBLE_QUOTES
-    open_quote.value.separator = DOUBLE_QUOTES; // Assumindo que adicionou DOUBLE_QUOTES no enum
+    open_quote.type = TOKEN_SEPARATOR; 
+    open_quote.value.separator = DOUBLE_QUOTES; 
     open_quote.line = *current_line;
     append_token(token_list, open_quote);
     
-    
-    // 2. CAPTURA O TEXTO DA STRING
-    // Aloca o buffer para o texto interno
     char *buffer = malloc(sizeof(char) * 256);
     int idx = 0;
 
-    // O uso da linha como ponteiro (int *current_line)
-    // Isso é necessário porque se houver um \n DENTRO da string, 
-    // precisa atualizar a linha no lexer principal também.
-    current = fgetc(file); // Pula a aspa de abertura que disparou o estado
+    current = fgetc(file); 
     
     while (current != '"' && current != EOF) {
         if (current == '\n') {
@@ -192,9 +208,8 @@ static void generate_string(char current, FILE *file, int *current_line, TokenNo
         buffer[idx++] = current;
         current = fgetc(file);
     }
-    buffer[idx] = '\0'; // Finaliza a string para o C
+    buffer[idx] = '\0'; 
 
-    // 3. GERA E INSERE O TOKEN DO TEXTO LITERAL
     Token string_literal;
     string_literal.type = TOKEN_LITERAL;
     string_literal.value.literal.tag = LIT_STRING;
@@ -202,7 +217,6 @@ static void generate_string(char current, FILE *file, int *current_line, TokenNo
     string_literal.line = *current_line;
     append_token(token_list, string_literal);
 
-    // 4. GERA E INSERE O TOKEN DA ASPA DE FECHAMENTO (se encontrou)
     if (current == '"') {
         Token close_quote;
         close_quote.type = TOKEN_SEPARATOR;
@@ -210,18 +224,20 @@ static void generate_string(char current, FILE *file, int *current_line, TokenNo
         close_quote.line = *current_line;
         append_token(token_list, close_quote);
     } else {
-        printf("ERRO LÉXICO: Linha %d - String não foi fechada (esperado '\"').\n", *current_line);
+        printf("ERRO LEXICO: Linha %d - String não foi fechada (esperado '\"').\n", *current_line);
     }
 
     return;
 }
 
+
+/*********** Função da análise Lexica ***********/
 TokenNode* lexer (FILE *file){
   char current = fgetc(file);
-  LexerState state = STATE_START; // Todo arquivo começa no estado START
-  TokenNode *token_list = NULL; //Começa com uma lista vazia para armazenar os tokens
+  LexerState state = STATE_START; 
+  TokenNode *token_list = NULL; 
 
-  int current_line = 1; // Linha do arquivo
+  int current_line = 1; 
 
   while (current!=EOF){
     switch (state){
@@ -231,41 +247,44 @@ TokenNode* lexer (FILE *file){
             current = fgetc(file);
         } else if (current == ' ' || current == '\r' || current == '\t'){
           current = fgetc(file);
-        }else if (current == ';') {
+        } else if (current == ';') {
             Token token;
             token.type = TOKEN_SEPARATOR;
             token.value.separator = SEMICOLON;
             token.line = current_line;
-            append_token(&token_list, token); //Salva o token na lista
+            append_token(&token_list, token); 
 
-            current = fgetc(file); // Avança
+            current = fgetc(file); 
         } else if (current == '(') {
             Token token;
             token.type = TOKEN_SEPARATOR;
             token.value.separator = OPEN_PAREN;
             token.line = current_line;
-            append_token(&token_list, token); //Salva o token na lista
+            append_token(&token_list, token); 
 
-            current = fgetc(file); // Avança
+            current = fgetc(file); 
         } else if (current == ')') {
             Token token;
             token.type = TOKEN_SEPARATOR;
             token.value.separator = CLOSE_PAREN;
             token.line = current_line;
-            append_token(&token_list, token); //Salva o token na lista
+            append_token(&token_list, token); 
 
-            current = fgetc(file); // Avança
-        }else if (current == '"') {
-            // O &current_line como endereço serve para que a função possa incrementá-la se necessário
+            current = fgetc(file); 
+        } else if (current == '"') {
             generate_string(current, file, &current_line, &token_list);
-            
-            // Avançamos para o próximo caractere pós-aspa e continuamos o laço
             current = fgetc(file);
+        } else if (current == '='){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.value.separator = EQUAL;
+            token.line = current_line;
+            append_token(&token_list, token); 
+
+            current = fgetc(file); //Avança o caractere após o '=' para evitar loop infinito!
         } else if (isdigit(current)) {
-            // Não processa o número aqui! Só muda o estado
             state = STATE_IN_NUMBER;
         } else if (isalpha(current)) {
-            // Não processa a palavra aqui! Só muda o estado
             state = STATE_IN_ID;
         } else {
             printf("ERRO LEXICO: Caractere invalido '%c'\n", current);
@@ -273,32 +292,31 @@ TokenNode* lexer (FILE *file){
         }
         break;
 
-      case STATE_IN_NUMBER: {
-          Token token = generate_number(current, file, current_line);
-          token.line = current_line;
-          append_token(&token_list, token); //Salva o token na lista
-          
-          // O ungetc dentro de generate_number já organizou o arquivo.
-          // Lemos o próximo caractere e voltamos para o START.
-          current = fgetc(file); 
-          state = STATE_START; 
-          break;
-      }
-
-    case STATE_IN_ID: {
-        Token *test_keyword = generate_keyword(current, file, current_line);
-        if (test_keyword->value.keyword == EXIT || test_keyword->value.keyword == PRINT) {
-            append_token(&token_list, *test_keyword); 
-        }else{
-            printf("ERRO LÉXICO: Identificador desconhecido na linha %d\n", current_line);
+        case STATE_IN_NUMBER: {
+            Token token = generate_number(current, file, current_line);
+            token.line = current_line;
+            append_token(&token_list, token); 
+            
+            current = fgetc(file); 
+            state = STATE_START; 
+            break;
         }
-        free(test_keyword);
-        
-        current = fgetc(file);
-        state = STATE_START; 
-        break;
-    }
 
+        case STATE_IN_ID: {
+            Token *test_keyword = generate_identifier_or_keyword(current, file, current_line);
+            
+            // CORREÇÃO: Verifica de forma genérica e robusta se o token gerado é Keyword ou ID válido
+            if (test_keyword->type == TOKEN_KEYWORD || test_keyword->type == TOKEN_IDENTIFIER) {
+                append_token(&token_list, *test_keyword); 
+            } else {
+                printf("ERRO LEXICO: Identificador desconhecido na linha %d\n", current_line);
+            }
+            free(test_keyword);
+            
+            current = fgetc(file);
+            state = STATE_START; 
+            break;
+        }
     }
   }
   return token_list;

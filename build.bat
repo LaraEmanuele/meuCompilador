@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 
 :: O gcc agora compila TODOS os arquivos .c juntos e ativa os alertas (-Wall -Wextra)
-gcc -Wall -Wextra main.c lexer.c grammar.c parser.c -o output\main.exe
+gcc -Wall -Wextra main.c lexer.c grammar.c parser.c symbol_table.c -o output\main.exe
 
 if %errorlevel% neq 0 (
     echo.
