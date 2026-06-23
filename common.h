@@ -2,6 +2,8 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <stdbool.h>
+
 // ==========================================
 // 1. ENUMS BÁSICOS (DECLARADOS PRIMEIRO)
 // ==========================================
@@ -27,6 +29,7 @@ typedef enum {
     EXIT,
     PRINT,
     INT_KW,
+    CONST,
 } TypeKeyWord;  
 
 typedef enum {
@@ -41,6 +44,17 @@ typedef enum {
     CLOSE_PAREN,
     DOUBLE_QUOTES,
     EQUAL,
+    SUM,
+    SUB,
+    MUL,
+    DIV,
+    MOD,
+    EQ,      // ==
+    NE,      // !=
+    GT,      // >
+    LT,      // <
+    GE,      // >=
+    LE       // <=
 } TypeSeparator;
 
 typedef enum {
@@ -114,6 +128,7 @@ typedef struct TokenNode {
 typedef struct {
     char name[32];
     int offset;
+    bool is_constant;
 } Variable;
 
 typedef struct {

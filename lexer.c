@@ -38,9 +38,10 @@ void print_token_list(TokenNode *head) {
         switch (current->token.type) {
             case TOKEN_KEYWORD:
                 printf("Tipo: KEYWORD        | Valor: ");
-                if (current->token.value.keyword == EXIT)    printf("EXIT\n");
-                if (current->token.value.keyword == PRINT)   printf("PRINT\n");
-                if (current->token.value.keyword == INT_KW)  printf("INT\n");
+                if (current->token.value.keyword == EXIT)     printf("EXIT\n");
+                else if (current->token.value.keyword == PRINT)    printf("PRINT\n");
+                else if (current->token.value.keyword == INT_KW)   printf("INT\n");
+                else if (current->token.value.keyword == CONST) printf("CONST\n"); // <-- NOVA PALAVRA-CHAVE
                 break;
                 
             case TOKEN_IDENTIFIER:
@@ -65,11 +66,24 @@ void print_token_list(TokenNode *head) {
                 
             case TOKEN_SEPARATOR:
                 printf("Tipo: SEPARATOR      | Valor: ");
-                if (current->token.value.separator == SEMICOLON)     printf(";\n");
-                if (current->token.value.separator == OPEN_PAREN)    printf("(\n");
-                if (current->token.value.separator == CLOSE_PAREN)   printf(")\n");
-                if (current->token.value.separator == DOUBLE_QUOTES) printf("\"\n");
-                if (current->token.value.separator == EQUAL)        printf("=\n");
+                if (current->token.value.separator == SEMICOLON)         printf(";\n");
+                else if (current->token.value.separator == OPEN_PAREN)    printf("(\n");
+                else if (current->token.value.separator == CLOSE_PAREN)   printf(")\n");
+                else if (current->token.value.separator == DOUBLE_QUOTES) printf("\"\n");
+                else if (current->token.value.separator == EQUAL)         printf("=\n"); // Atribuição comum
+                else if (current->token.value.separator == EQ)            printf("==\n"); // Comparação de igualdade
+                else if (current->token.value.separator == NE)            printf("!=\n"); // Diferença
+                else if (current->token.value.separator == LT)            printf("<\n");
+                else if (current->token.value.separator == LE)            printf("<=\n");
+                else if (current->token.value.separator == GT)            printf(">\n");
+                else if (current->token.value.separator == GE)            printf(">=\n");
+                // --- OPERADORES ARITMÉTICOS ---
+                else if (current->token.value.separator == SUM)           printf("+\n");
+                else if (current->token.value.separator == SUB)           printf("-\n");
+                else if (current->token.value.separator == MUL)           printf("*\n");
+                else if (current->token.value.separator == DIV)           printf("/\n");
+                else if (current->token.value.separator == MOD)           printf("%%\n"); // Corrigido para printar '%' corretamente em C
+                else printf("DESCONHECIDO (%d)\n", current->token.value.separator);
                 break;
         }
         current = current->next; // Avança para o próximo nó
@@ -170,7 +184,10 @@ static Token* generate_identifier_or_keyword(char current, FILE *file, int curre
     // ==========================================
     // PASSO DE DECISÃO: É palavra-chave ou ID?
     // ==========================================
-    if (strcmp(buffer, "int") == 0) {
+    if (strcmp(buffer, "const") == 0) {      
+        t->type = TOKEN_KEYWORD;
+        t->value.keyword = CONST;
+    } else if (strcmp(buffer, "int") == 0) {
         t->type = TOKEN_KEYWORD;
         t->value.keyword = INT_KW; 
     } else if (strcmp(buffer, "print") == 0) {
@@ -239,7 +256,7 @@ TokenNode* lexer (FILE *file){
 
   int current_line = 1; 
 
-  while (current!=EOF){
+  while (current != EOF){
     switch (state){
       case STATE_START:
         if (current == '\n') {
@@ -253,7 +270,6 @@ TokenNode* lexer (FILE *file){
             token.value.separator = SEMICOLON;
             token.line = current_line;
             append_token(&token_list, token); 
-
             current = fgetc(file); 
         } else if (current == '(') {
             Token token;
@@ -261,7 +277,6 @@ TokenNode* lexer (FILE *file){
             token.value.separator = OPEN_PAREN;
             token.line = current_line;
             append_token(&token_list, token); 
-
             current = fgetc(file); 
         } else if (current == ')') {
             Token token;
@@ -269,7 +284,6 @@ TokenNode* lexer (FILE *file){
             token.value.separator = CLOSE_PAREN;
             token.line = current_line;
             append_token(&token_list, token); 
-
             current = fgetc(file); 
         } else if (current == '"') {
             generate_string(current, file, &current_line, &token_list);
@@ -277,35 +291,117 @@ TokenNode* lexer (FILE *file){
         } else if (current == '='){
             Token token;
             token.type = TOKEN_SEPARATOR;
-            token.value.separator = EQUAL;
+            token.line = current_line;
+            
+            current = fgetc(file); // Espia o próximo caractere
+            if (current == '=') {
+                token.value.separator = EQ; // É '==' (Comparação)
+                append_token(&token_list, token); 
+                current = fgetc(file); // Consome o segundo '='
+            } else {
+                token.value.separator = EQUAL; // CORRIGIDO: Agora gera '=' (Atribuição)
+                append_token(&token_list, token);
+                // Mantém o current sem avançar, pois ele já contém o próximo caractere
+            }
+        } else if (current == '!') {
+            current = fgetc(file);
+            if (current == '=') {
+                Token token = { .type = TOKEN_SEPARATOR, .value.separator = NE, .line = current_line };
+                append_token(&token_list, token);
+                current = fgetc(file);
+            } else {
+                printf("ERRO LEXICO: Caractere '!' isolado na linha %d (esperava '=' para fazer '!=')\n", current_line);
+            }
+        } else if (current == '+'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.value.separator = SUM;
             token.line = current_line;
             append_token(&token_list, token); 
-
-            current = fgetc(file); //Avança o caractere após o '=' para evitar loop infinito!
+            current = fgetc(file); 
+        } else if (current == '-'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.value.separator = SUB;
+            token.line = current_line;
+            append_token(&token_list, token); 
+            current = fgetc(file); 
+        } else if (current == '*'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.value.separator = MUL;
+            token.line = current_line;
+            append_token(&token_list, token); 
+            current = fgetc(file); 
+        } else if (current == '/'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.value.separator = DIV;
+            token.line = current_line;
+            append_token(&token_list, token); 
+            current = fgetc(file); 
+        } else if (current == '%'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.value.separator = MOD;
+            token.line = current_line;
+            append_token(&token_list, token); 
+            current = fgetc(file); 
+        } else if (current == '<'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.line = current_line;
+            
+            current = fgetc(file);
+            if (current == '='){
+                token.value.separator = LE;
+                append_token(&token_list, token); 
+                current = fgetc(file);
+            } else {
+                token.value.separator = LT;
+                append_token(&token_list, token); 
+                // Mantém o current sem avançar pois já é o próximo caractere
+            }
+        } else if (current == '>'){
+            Token token;
+            token.type = TOKEN_SEPARATOR;
+            token.line = current_line;
+            
+            current = fgetc(file);
+            if (current == '='){
+                token.value.separator = GE;
+                append_token(&token_list, token); 
+                current = fgetc(file);
+            } else {
+                token.value.separator = GT;
+                append_token(&token_list, token); 
+                // Mantém o current sem avançar
+            }
         } else if (isdigit(current)) {
             state = STATE_IN_NUMBER;
         } else if (isalpha(current)) {
             state = STATE_IN_ID;
         } else {
-            printf("ERRO LEXICO: Caractere invalido '%c'\n", current);
+            printf("ERRO LEXICO: Caractere invalido '%c' na linha %d\n", current, current_line);
             current = fgetc(file);
         }
         break;
 
-        case STATE_IN_NUMBER: {
+      case STATE_IN_NUMBER: {
+            // generate_number já faz o fgetc interno e devolve o excesso com ungetc
             Token token = generate_number(current, file, current_line);
-            token.line = current_line;
             append_token(&token_list, token); 
             
+            // CORREÇÃO: Não avançamos o fgetc aqui para ler o caractere devolvido no próximo loop
             current = fgetc(file); 
             state = STATE_START; 
             break;
         }
 
-        case STATE_IN_ID: {
+      case STATE_IN_ID: {
+            // generate_identifier_or_keyword também faz ungetc interno
             Token *test_keyword = generate_identifier_or_keyword(current, file, current_line);
             
-            // CORREÇÃO: Verifica de forma genérica e robusta se o token gerado é Keyword ou ID válido
             if (test_keyword->type == TOKEN_KEYWORD || test_keyword->type == TOKEN_IDENTIFIER) {
                 append_token(&token_list, *test_keyword); 
             } else {
@@ -313,6 +409,7 @@ TokenNode* lexer (FILE *file){
             }
             free(test_keyword);
             
+            // CORREÇÃO: Pegamos o caractere que foi devolvido pelo ungetc para iniciar a próxima validação
             current = fgetc(file);
             state = STATE_START; 
             break;
